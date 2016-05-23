@@ -1,0 +1,20 @@
+language: python
+python:
+  - "2.7"
+  - "3.3"
+  - "3.4"
+env:
+  - DJANGO='django>=1.6,<1.7'
+  - DJANGO='django>=1.7,<1.8'
+  - DJANGO='django>=1.8,<1.9'
+  - DJANGO='--pre django'
+matrix:
+  allow_failures:
+    - env: DJANGO='--pre django'
+  fast_finish: true
+install:
+  - pip install $DJANGO
+  - pip install -e .
+script: "./runtests.py"
+notifications:
+  email: false
