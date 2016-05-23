@@ -56,3 +56,8 @@ def posts_api(request, after=None):
     }
     return data
 ```
+
+Reverse pagination can be achieved by using the `last` and `before` arguments
+to `paginator.page`.
+
+The ordering specified **must** uniquely identify the object.
