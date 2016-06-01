@@ -60,4 +60,9 @@ def posts_api(request, after=None):
 Reverse pagination can be achieved by using the `last` and `before` arguments
 to `paginator.page`.
 
-The ordering specified **must** uniquely identify the object.
+Caveats
+-------
+
+- The ordering specified **must** uniquely identify the object.
+- If there are multiple ordering fields, then they must all have the same direction
+- No support for multiple ordering fields in SQLite as it does not support tuple comparison.

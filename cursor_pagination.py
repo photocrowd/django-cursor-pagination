@@ -1,8 +1,18 @@
 from base64 import b64decode, b64encode
 from collections import Sequence
 
+from django.db.models import Field, Func, Value, TextField
 from django.utils import six
 from django.utils.translation import ugettext_lazy as _
+
+
+class TupleField(Field):
+    pass
+
+
+class Tuple(Func):
+    function = ''
+    output_field = TupleField()
 
 
 class InvalidCursor(Exception):
@@ -45,6 +55,9 @@ class CursorPaginator(object):
         self.queryset = queryset.order_by(*ordering)
         self.ordering = ordering
 
+        if not all(o.startswith('-') for o in ordering) and not all(not o.startswith('-') for o in ordering):
+            raise InvalidCursor('Direction of orderings must match')
+
     def page(self, first=None, last=None, after=None, before=None):
         qs = self.queryset
         page_size = first or last
@@ -77,17 +90,12 @@ class CursorPaginator(object):
     def apply_cursor(self, cursor, queryset, reverse=False):
         position = self.decode_cursor(cursor)
 
-        kwargs = {}
-        for index, order in enumerate(self.ordering):
-            is_reversed = order.startswith('-')
-            order_attr = order.lstrip('-')
-
-            if reverse != is_reversed:
-                kwargs.update({order_attr + '__lt': position[index]})
-            else:
-                kwargs.update({order_attr + '__gt': position[index]})
-
-        return queryset.filter(**kwargs)
+        is_reversed = self.ordering[0].startswith('-')
+        queryset = queryset.annotate(cursor=Tuple(*[o.lstrip('-') for o in self.ordering]))
+        current_position = [Value(p, output_field=TextField()) for p in position]
+        if reverse != is_reversed:
+            return queryset.filter(cursor__lt=Tuple(*current_position))
+        return queryset.filter(cursor__gt=Tuple(*current_position))
 
     def decode_cursor(self, cursor):
         try:

@@ -3,7 +3,7 @@ import datetime
 from django.test import TestCase
 from django.utils import timezone
 
-from cursor_pagination import CursorPaginator
+from cursor_pagination import CursorPaginator, InvalidCursor
 
 from .models import Post
 
@@ -108,3 +108,40 @@ class TestBackwardsPagination(TestCase):
         self.assertSequenceEqual(page, [self.items[0], self.items[1]])
         self.assertFalse(page.has_previous)
         self.assertFalse(page.has_next)
+
+
+class TestTwoFieldPagination(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        now = timezone.now()
+        cls.items = []
+        data = [
+            (now, 'B'),
+            (now, 'C'),
+            (now, 'D'),
+            (now + datetime.timedelta(hours=1), 'A'),
+        ]
+        for time, name in data:
+            post = Post.objects.create(name=name, created=time)
+            cls.items.append(post)
+
+    def test_order(self):
+        paginator = CursorPaginator(Post.objects.all(), ('created', 'name'))
+        previous_page = paginator.page(first=2)
+        self.assertSequenceEqual(previous_page, [self.items[0], self.items[1]])
+        cursor = paginator.cursor(previous_page[-1])
+        page = paginator.page(first=2, after=cursor)
+        self.assertSequenceEqual(page, [self.items[2], self.items[3]])
+
+    def test_reverse_order(self):
+        paginator = CursorPaginator(Post.objects.all(), ('-created', '-name'))
+        previous_page = paginator.page(first=2)
+        self.assertSequenceEqual(previous_page, [self.items[3], self.items[2]])
+        cursor = paginator.cursor(previous_page[-1])
+        page = paginator.page(first=2, after=cursor)
+        self.assertSequenceEqual(page, [self.items[1], self.items[0]])
+
+    def test_mixed_order(self):
+        with self.assertRaises(InvalidCursor):
+            CursorPaginator(Post.objects.all(), ('created', '-name'))
