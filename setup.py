@@ -4,7 +4,7 @@ from setuptools import setup
 setup(
     name='django-cursor-pagination',
     py_modules=['cursor_pagination'],
-    version='0.1',
+    version='0.1.1',
     description='Cursor based pagination for Django',
     author='Photocrowd',
     author_email='marc@photocrowd.com',
