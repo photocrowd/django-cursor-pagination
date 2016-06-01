@@ -1,6 +1,7 @@
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'django-cursor-pagination',
     }
 }
 
