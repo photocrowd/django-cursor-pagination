@@ -5,7 +5,7 @@ from django.utils import timezone
 
 from cursor_pagination import CursorPaginator, InvalidCursor
 
-from .models import Post
+from .models import Author, Post
 
 
 class TestNoArgs(TestCase):
@@ -145,3 +145,24 @@ class TestTwoFieldPagination(TestCase):
     def test_mixed_order(self):
         with self.assertRaises(InvalidCursor):
             CursorPaginator(Post.objects.all(), ('created', '-name'))
+
+
+class TestRelationships(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        cls.items = []
+        author_1 = Author.objects.create(name='Ana')
+        author_2 = Author.objects.create(name='Bob')
+        for i in range(20):
+            post = Post.objects.create(name='Name %02d' % i, author=author_1 if i % 2 else author_2)
+            cls.items.append(post)
+        cls.paginator = CursorPaginator(Post.objects.all(), ('author__name', 'name'))
+
+    def test_first_page(self):
+        page = self.paginator.page(first=2)
+        self.assertSequenceEqual(page, [self.items[1], self.items[3]])
+
+    def test_after_page(self):
+        cursor = self.paginator.cursor(self.items[17])
+        page = self.paginator.page(first=2, after=cursor)
+        self.assertSequenceEqual(page, [self.items[19], self.items[0]])
