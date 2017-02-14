@@ -111,7 +111,10 @@ class CursorPaginator(object):
     def position_from_instance(self, instance):
         position = []
         for order in self.ordering:
-            attr = getattr(instance, order.lstrip('-'))
+            parts = order.split('__')
+            attr = instance
+            for part in parts:
+                attr = getattr(attr, part.lstrip('-'))
             position.append(six.text_type(attr))
         return position
 
