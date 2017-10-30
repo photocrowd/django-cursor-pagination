@@ -14,6 +14,11 @@ class Tuple(Func):
     function = ''
     output_field = TupleField()
 
+    def as_mysql(self, compiler, connection):
+        self.function = 'CONCAT_WS'
+        self.template = "%(function)s('', %(expressions)s)"
+        return super(Tuple, self).as_sql(compiler, connection)
+
 
 class InvalidCursor(Exception):
     pass
