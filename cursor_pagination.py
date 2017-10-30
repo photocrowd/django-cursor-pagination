@@ -91,11 +91,11 @@ class CursorPaginator(object):
         position = self.decode_cursor(cursor)
 
         is_reversed = self.ordering[0].startswith('-')
-        queryset = queryset.annotate(cursor=Tuple(*[o.lstrip('-') for o in self.ordering]))
+        queryset = queryset.annotate(_cursor=Tuple(*[o.lstrip('-') for o in self.ordering]))
         current_position = [Value(p, output_field=TextField()) for p in position]
         if reverse != is_reversed:
-            return queryset.filter(cursor__lt=Tuple(*current_position))
-        return queryset.filter(cursor__gt=Tuple(*current_position))
+            return queryset.filter(_cursor__lt=Tuple(*current_position))
+        return queryset.filter(_cursor__gt=Tuple(*current_position))
 
     def decode_cursor(self, cursor):
         try:
