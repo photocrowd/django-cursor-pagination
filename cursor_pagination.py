@@ -83,8 +83,10 @@ class CursorPaginator(object):
         additional_kwargs = {}
         if first is not None:
             additional_kwargs['has_next'] = has_additional
+            additional_kwargs['has_previous'] = bool(after)
         elif last is not None:
             additional_kwargs['has_previous'] = has_additional
+            additional_kwargs['has_next'] = bool(before)
         return CursorPage(items, self, **additional_kwargs)
 
     def apply_cursor(self, cursor, queryset, reverse=False):
