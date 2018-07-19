@@ -14,6 +14,18 @@ class Tuple(Func):
     function = ''
     output_field = TupleField()
 
+    def get_group_by_cols(self):
+        # Irrespective of whether we have an aggregate, we want to drill down
+        # to the children here. You can't GROUP BY a tuple like you would for a
+        # "normal" function - i.e. GROUP BY ("a", "b") is invalid SQL. However,
+        # it's logically equivalent to GROUP BY "a", "b" in call cases, so we
+        # never need the case where this 'function' needs to be included in the
+        # clause.
+        cols = []
+        for expr in self.source_expressions:
+            cols += expr.get_group_by_cols()
+        return cols
+
 
 class InvalidCursor(Exception):
     pass
