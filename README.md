@@ -19,7 +19,7 @@ A typical use case would be ordering by a creation timestamp and an id. It is
 also more difficult to get the range of possible pages for the data.
 
 The inspiration for this project is largely taken from [this
-post](http://cramer.io/2011/03/08/building-cursors-for-the-disqus-api) by David
+post](http://cra.mr/2011/03/08/building-cursors-for-the-disqus-api) by David
 Cramer, and the connection spec for [Relay
 GraphQL](https://facebook.github.io/relay/graphql/connections.htm). Much of the
 implementation is inspired by [Django rest framework's Cursor
