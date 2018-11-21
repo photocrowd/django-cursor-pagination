@@ -18,7 +18,7 @@ class TestNoArgs(TestCase):
 
     def test_with_items(self):
         for i in range(20):
-            Post.objects.create(name='Name %s' % i)
+            Post.objects.create(name='Name %s 東京都' % i)
         paginator = CursorPaginator(Post.objects.all(), ('id',))
         page = paginator.page()
         self.assertEqual(len(page), 20)
@@ -33,7 +33,7 @@ class TestForwardPagination(TestCase):
         now = timezone.now()
         cls.items = []
         for i in range(20):
-            post = Post.objects.create(name='Name %s' % i, created=now - datetime.timedelta(hours=i))
+            post = Post.objects.create(name='Name %s 東京都' % i, created=now - datetime.timedelta(hours=i))
             cls.items.append(post)
         cls.paginator = CursorPaginator(Post.objects.all(), ('-created',))
 
@@ -75,7 +75,7 @@ class TestBackwardsPagination(TestCase):
         now = timezone.now()
         cls.items = []
         for i in range(20):
-            post = Post.objects.create(name='Name %s' % i, created=now - datetime.timedelta(hours=i))
+            post = Post.objects.create(name='Name %s 東京都' % i, created=now - datetime.timedelta(hours=i))
             cls.items.append(post)
         cls.paginator = CursorPaginator(Post.objects.all(), ('-created',))
 
@@ -117,10 +117,10 @@ class TestTwoFieldPagination(TestCase):
         now = timezone.now()
         cls.items = []
         data = [
-            (now, 'B'),
-            (now, 'C'),
-            (now, 'D'),
-            (now + datetime.timedelta(hours=1), 'A'),
+            (now, 'B 横浜市'),
+            (now, 'C 横浜市'),
+            (now, 'D 横浜市'),
+            (now + datetime.timedelta(hours=1), 'A 横浜市'),
         ]
         for time, name in data:
             post = Post.objects.create(name=name, created=time)
@@ -151,10 +151,10 @@ class TestRelationships(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.items = []
-        author_1 = Author.objects.create(name='Ana')
-        author_2 = Author.objects.create(name='Bob')
+        author_1 = Author.objects.create(name='Ana 北海道')
+        author_2 = Author.objects.create(name='Bob 北海道')
         for i in range(20):
-            post = Post.objects.create(name='Name %02d' % i, author=author_1 if i % 2 else author_2)
+            post = Post.objects.create(name='Name %02d 北海道' % i, author=author_1 if i % 2 else author_2)
             cls.items.append(post)
         cls.paginator = CursorPaginator(Post.objects.all(), ('author__name', 'name'))
 
