@@ -5,6 +5,8 @@ from django.db.models import Field, Func, TextField, Value
 from django.utils import six
 from django.utils.translation import ugettext_lazy as _
 
+pickle = six.moves.cPickle
+
 
 class TupleField(Field):
     pass
@@ -60,11 +62,17 @@ class CursorPage(Sequence):
 
 
 def encode_to_ascii(s):
-    return ''.join(map(hex, s.encode())).lstrip('0x')
+    byteval = pickle.dumps(s)
+    return ''.join(map(hex, six.iterbytes(byteval))).lstrip('0x')
+
+
+def unhex(x):
+    return int(x, 16)
 
 
 def decode_from_ascii(s):
-    return bytes(int(d, 16) for d in s.split('0x')).decode()
+    byteval = b''.join(six.int2byte(unhex(d)) for d in s.split('0x'))
+    return pickle.loads(byteval)
 
 
 class CursorPaginator(object):
