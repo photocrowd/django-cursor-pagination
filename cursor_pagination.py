@@ -59,6 +59,14 @@ class CursorPage(Sequence):
         return '<Page: [%s%s]>' % (', '.join(repr(i) for i in self.items[:21]), ' (remaining truncated)' if len(self.items) > 21 else '')
 
 
+def encode_to_ascii(s):
+    return "".join(map(hex, s.encode())).lstrip('0x')
+
+
+def decode_from_ascii(s):
+    return bytes(int(d, 16) for d in s.split('0x')).decode()
+
+
 class CursorPaginator(object):
     delimiter = '|'
     invalid_cursor_message = _('Invalid cursor')
@@ -112,11 +120,16 @@ class CursorPaginator(object):
     def decode_cursor(self, cursor):
         try:
             orderings = b64decode(cursor.encode('ascii')).decode('ascii')
-            return orderings.split(self.delimiter)
+            
+            orderings = orderings.split(self.delimiter)
+            
+            return [decode_from_ascii(x) for x in orderings]
+
         except (TypeError, ValueError):
             raise InvalidCursor(self.invalid_cursor_message)
 
     def encode_cursor(self, position):
+        position = map(encode_to_ascii, position)
         encoded = b64encode(self.delimiter.join(position).encode('ascii')).decode('ascii')
         return encoded
 
