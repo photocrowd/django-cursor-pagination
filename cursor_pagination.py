@@ -1,7 +1,7 @@
 from base64 import b64decode, b64encode
 from collections import Sequence
 
-from django.db.models import Field, Func, Value, TextField
+from django.db.models import Field, Func, TextField, Value
 from django.utils import six
 from django.utils.translation import ugettext_lazy as _
 
@@ -60,7 +60,7 @@ class CursorPage(Sequence):
 
 
 def encode_to_ascii(s):
-    return "".join(map(hex, s.encode())).lstrip('0x')
+    return ''.join(map(hex, s.encode())).lstrip('0x')
 
 
 def decode_from_ascii(s):
