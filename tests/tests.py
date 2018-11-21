@@ -22,9 +22,10 @@ class TestNoArgs(TestCase):
     def test_with_items(self):
         for i in range(20):
             Post.objects.create(name='Name %s 東京都' % i)
+            Post.objects.create(name='Name %s' % i)
         paginator = CursorPaginator(Post.objects.all(), ('id',))
         page = paginator.page()
-        self.assertEqual(len(page), 20)
+        self.assertEqual(len(page), 40)
         self.assertFalse(page.has_next)
         self.assertFalse(page.has_previous)
 
@@ -37,6 +38,8 @@ class TestForwardPagination(TestCase):
         cls.items = []
         for i in range(20):
             post = Post.objects.create(name='Name %s 東京都' % i, created=now - datetime.timedelta(hours=i))
+            cls.items.append(post)
+            post = Post.objects.create(name='Name %s' % i, created=now - datetime.timedelta(hours=i, minutes=30))
             cls.items.append(post)
         cls.paginator = CursorPaginator(Post.objects.all(), ('-created',))
 
@@ -55,18 +58,18 @@ class TestForwardPagination(TestCase):
         self.assertFalse(page.has_previous)
 
     def test_last_page(self):
-        previous_page = self.paginator.page(first=18)
+        previous_page = self.paginator.page(first=38)
         cursor = self.paginator.cursor(previous_page[-1])
         page = self.paginator.page(first=2, after=cursor)
-        self.assertSequenceEqual(page, [self.items[18], self.items[19]])
+        self.assertSequenceEqual(page, [self.items[38], self.items[39]])
         self.assertFalse(page.has_next)
         self.assertFalse(page.has_previous)
 
     def test_incomplete_last_page(self):
-        previous_page = self.paginator.page(first=18)
+        previous_page = self.paginator.page(first=38)
         cursor = self.paginator.cursor(previous_page[-1])
         page = self.paginator.page(first=100, after=cursor)
-        self.assertSequenceEqual(page, [self.items[18], self.items[19]])
+        self.assertSequenceEqual(page, [self.items[38], self.items[39]])
         self.assertFalse(page.has_next)
         self.assertFalse(page.has_previous)
 
@@ -80,11 +83,13 @@ class TestBackwardsPagination(TestCase):
         for i in range(20):
             post = Post.objects.create(name='Name %s 東京都' % i, created=now - datetime.timedelta(hours=i))
             cls.items.append(post)
+            post = Post.objects.create(name='Name %s' % i, created=now - datetime.timedelta(hours=i, minutes=30))
+            cls.items.append(post)
         cls.paginator = CursorPaginator(Post.objects.all(), ('-created',))
 
     def test_first_page(self):
         page = self.paginator.page(last=2)
-        self.assertSequenceEqual(page, [self.items[18], self.items[19]])
+        self.assertSequenceEqual(page, [self.items[38], self.items[39]])
         self.assertTrue(page.has_previous)
         self.assertFalse(page.has_next)
 
@@ -92,12 +97,12 @@ class TestBackwardsPagination(TestCase):
         previous_page = self.paginator.page(last=2)
         cursor = self.paginator.cursor(previous_page[0])
         page = self.paginator.page(last=2, before=cursor)
-        self.assertSequenceEqual(page, [self.items[16], self.items[17]])
+        self.assertSequenceEqual(page, [self.items[36], self.items[37]])
         self.assertTrue(page.has_previous)
         self.assertFalse(page.has_next)
 
     def test_last_page(self):
-        previous_page = self.paginator.page(last=18)
+        previous_page = self.paginator.page(last=38)
         cursor = self.paginator.cursor(previous_page[0])
         page = self.paginator.page(last=2, before=cursor)
         self.assertSequenceEqual(page, [self.items[0], self.items[1]])
@@ -105,7 +110,7 @@ class TestBackwardsPagination(TestCase):
         self.assertFalse(page.has_next)
 
     def test_incomplete_last_page(self):
-        previous_page = self.paginator.page(last=18)
+        previous_page = self.paginator.page(last=38)
         cursor = self.paginator.cursor(previous_page[0])
         page = self.paginator.page(last=100, before=cursor)
         self.assertSequenceEqual(page, [self.items[0], self.items[1]])
@@ -121,9 +126,9 @@ class TestTwoFieldPagination(TestCase):
         cls.items = []
         data = [
             (now, 'B 横浜市'),
-            (now, 'C 横浜市'),
+            (now, 'C'),
             (now, 'D 横浜市'),
-            (now + datetime.timedelta(hours=1), 'A 横浜市'),
+            (now + datetime.timedelta(hours=1), 'A'),
         ]
         for time, name in data:
             post = Post.objects.create(name=name, created=time)
@@ -154,18 +159,20 @@ class TestRelationships(TestCase):
     @classmethod
     def setUpTestData(cls):
         cls.items = []
-        author_1 = Author.objects.create(name='Ana 北海道')
-        author_2 = Author.objects.create(name='Bob 北海道')
+        author_1 = Author.objects.create(name='Ana')
+        author_2 = Author.objects.create(name='Bob')
         for i in range(20):
+            post = Post.objects.create(name='Name %02d' % i, author=author_1 if i % 2 else author_2)
+            cls.items.append(post)
             post = Post.objects.create(name='Name %02d 北海道' % i, author=author_1 if i % 2 else author_2)
             cls.items.append(post)
         cls.paginator = CursorPaginator(Post.objects.all(), ('author__name', 'name'))
 
     def test_first_page(self):
         page = self.paginator.page(first=2)
-        self.assertSequenceEqual(page, [self.items[1], self.items[3]])
+        self.assertSequenceEqual(page, [self.items[2], self.items[3]])
 
     def test_after_page(self):
-        cursor = self.paginator.cursor(self.items[17])
+        cursor = self.paginator.cursor(self.items[33])
         page = self.paginator.page(first=2, after=cursor)
-        self.assertSequenceEqual(page, [self.items[19], self.items[0]])
+        self.assertSequenceEqual(page, [self.items[36], self.items[37]])
