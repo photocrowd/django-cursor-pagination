@@ -113,13 +113,13 @@ class CursorPaginator(object):
 
     def decode_cursor(self, cursor):
         try:
-            orderings = b64decode(cursor.encode('ascii')).decode('ascii')
+            orderings = b64decode(cursor.encode('ascii')).decode('utf8')
             return orderings.split(self.delimiter)
         except (TypeError, ValueError):
             raise InvalidCursor(self.invalid_cursor_message)
 
     def encode_cursor(self, position):
-        encoded = b64encode(self.delimiter.join(position).encode('ascii')).decode('ascii')
+        encoded = b64encode(self.delimiter.join(position).encode('utf8')).decode('ascii')
         return encoded
 
     def position_from_instance(self, instance):
