@@ -4,7 +4,6 @@ python:
   - "3.4"
   - "3.5"
   - "3.6"
-  - "3.7"
 env:
   - DJANGO='django>=1.11,<2.0'
   - DJANGO='django>=2.0,<2.1'
@@ -13,6 +12,11 @@ env:
 matrix:
   allow_failures:
     - env: DJANGO='--pre django'
+  # Enable 3.7 without globally enabling sudo and dist: xenial for other build jobs
+  include:
+    - python: "3.7"
+      dist: xenial
+      sudo: true
   exclude:
     - python: "2.7"
       env: DJANGO='django>=2.0,<2.1'
