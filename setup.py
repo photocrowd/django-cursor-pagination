@@ -1,13 +1,19 @@
 from setuptools import setup
 
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
+
 setup(
     name='django-cursor-pagination',
     py_modules=['cursor_pagination'],
-    version='0.1.3',
+    version='0.1.4',
     description='Cursor based pagination for Django',
+    long_description=long_description,
+    long_description_content_type="text/markdown",
     author='Photocrowd',
-    author_email='marc@photocrowd.com',
+    author_email='devteam@photocrowd.com',
     url='https://github.com/photocrowd/django-cursor-pagination',
     license='BSD',
     classifiers=[
@@ -22,5 +28,6 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ],
 )
