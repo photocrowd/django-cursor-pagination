@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+
 import datetime
 
 from django.test import TestCase
@@ -117,9 +119,9 @@ class TestTwoFieldPagination(TestCase):
         now = timezone.now()
         cls.items = []
         data = [
-            (now, 'B'),
+            (now, 'B 横浜市'),
             (now, 'C'),
-            (now, 'D'),
+            (now, 'D 横浜市'),
             (now + datetime.timedelta(hours=1), 'A'),
         ]
         for time, name in data:
