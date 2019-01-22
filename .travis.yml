@@ -1,22 +1,47 @@
 language: python
+services:
+  - postgresql
 python:
   - "2.7"
   - "3.4"
   - "3.5"
   - "3.6"
 env:
-  - DJANGO='django>=1.8,<1.9'
-  - DJANGO='django>=1.9,<1.10'
-  - DJANGO='django>=1.11,<1.12'
+  - DJANGO='django>=1.11,<2.0'
   - DJANGO='django>=2.0,<2.1'
+  - DJANGO='django>=2.1,<2.2'
   - DJANGO='--pre django'
 matrix:
   allow_failures:
     - env: DJANGO='--pre django'
+  # Enable 3.7 without globally enabling sudo and dist: xenial for other build jobs
+  include:
+    - python: "3.7"
+      dist: xenial
+      sudo: true
+      env: DJANGO='django>=1.11,<2.0'
+    - python: "3.7"
+      dist: xenial
+      sudo: true
+      env: DJANGO='django>=2.0,<2.1'
+    - python: "3.7"
+      dist: xenial
+      sudo: true
+      env: DJANGO='django>=2.1,<2.2'
+    - python: "3.7"
+      dist: xenial
+      sudo: true
+      env: DJANGO='--pre django'
   exclude:
     - python: "2.7"
       env: DJANGO='django>=2.0,<2.1'
     - python: "2.7"
+      env: DJANGO='django>=2.1,<2.2'
+    - python: "2.7"
+      env: DJANGO='--pre django'
+    - python: "3.4"
+      env: DJANGO='django>=2.1,<2.2'
+    - python: "3.4"
       env: DJANGO='--pre django'
   fast_finish: true
 install:
