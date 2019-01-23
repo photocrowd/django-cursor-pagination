@@ -1,9 +1,20 @@
-from base64 import b64decode, b64encode
+from base64 import b64decode, urlsafe_b64decode, urlsafe_b64encode
 from collections import Sequence
 
 from django.db.models import Field, Func, Value, TextField
 from django.utils import six
 from django.utils.translation import ugettext_lazy as _
+
+
+PADDING_CHAR = '='
+
+# 24 bits is the least common denominator between bits in a byte (8) and bits
+# in a b64 character (6). If we want to pad a b64 encoded string to be
+# byte-aligned then we need to pad the number of character to align to 24.
+# We can use the negative length of the b64 string modulo the least common
+# denominator to calculate the underflow.
+# This turns out to be (-len(b64string) % (24/6))
+B64_PAD = 4
 
 
 class TupleField(Field):
@@ -112,15 +123,23 @@ class CursorPaginator(object):
         return queryset.filter(_cursor__gt=Tuple(*current_position))
 
     def decode_cursor(self, cursor):
+        # b64 characters are 6 bits in length, so we need to pad extra
+        # characters until we align with 8-bit bytes
+        cursor = cursor + PADDING_CHAR * (-len(cursor) % B64_PAD)
         try:
-            orderings = b64decode(cursor.encode('ascii')).decode('utf8')
+            orderings = urlsafe_b64decode(cursor.encode('ascii')).decode('utf8')
             return orderings.split(self.delimiter)
         except (TypeError, ValueError):
-            raise InvalidCursor(self.invalid_cursor_message)
+            # try url-unsafe b64decode for backwards compatability
+            try:
+                orderings = b64decode(cursor.encode('ascii')).decode('utf8')
+                return orderings.split(self.delimiter)
+            except (TypeError, ValueError):
+                raise InvalidCursor(self.invalid_cursor_message)
 
     def encode_cursor(self, position):
-        encoded = b64encode(self.delimiter.join(position).encode('utf8')).decode('ascii')
-        return encoded
+        encoded = urlsafe_b64encode(self.delimiter.join(position).encode('utf8')).decode('ascii')
+        return encoded.rstrip(PADDING_CHAR)
 
     def position_from_instance(self, instance):
         position = []
