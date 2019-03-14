@@ -145,8 +145,12 @@ class TestTwoFieldPagination(TestCase):
         self.assertSequenceEqual(page, [self.items[1], self.items[0]])
 
     def test_mixed_order(self):
-        with self.assertRaises(InvalidCursor):
-            CursorPaginator(Post.objects.all(), ('created', '-name'))
+        paginator = CursorPaginator(Post.objects.all(), ('created', '-name'))
+        previous_page = paginator.page(first=2)
+        self.assertSequenceEqual(previous_page, [self.items[2], self.items[1]])
+        cursor = paginator.cursor(previous_page[-1])
+        page = paginator.page(first=2, after=cursor)
+        self.assertSequenceEqual(page, [self.items[0], self.items[3]])
 
 
 class TestRelationships(TestCase):
