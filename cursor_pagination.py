@@ -81,7 +81,7 @@ class CursorPaginator(object):
         position = self.decode_cursor(cursor)
 
         filtering = Q()
-        q_acc = []
+        q_accumulative = []
 
         # this was previously implemented as tuple comparison done on postgres side
         # Assume comparing 3-tuples a and b,
@@ -90,27 +90,55 @@ class CursorPaginator(object):
         # The expression above does not depend on short-circuit evalution support,
         # which is usually unavailable on backend RDB
 
-        for position, ordering in zip(position, self.ordering):
+        # In order to reflect that in DB query,
+        # we need to generate a corresponding WHERE-clause.
 
+        # Suppose we have ordering ("field1", "-field2", "field3")
+        # (note negation 2nd item),
+        # and corresponding cursor values are ("value1", "value2", "value3"),
+        # `reverse` is False.
+        # In order to apply cursor, we need to generate a following WHERE-clause:
+
+        # WHERE ((field1 < value1) OR
+        #     (field1 = value1 AND field2 > value2) OR
+        #     (field1 = value1 AND field2 = value2 OR field3 < value3).
+        #
+        # We will use `__lt` lookup for `<`,
+        # `__gt` for `>` and `__exact` for `=`.
+        # (Using case-sensitive comparison as long as
+        # cursor values come from the DB against which it is going to be compared).
+        # The corresponding django ORM construct would look like:
+        # filter(
+        #     Q(field1__lt=Value(value1)) |
+        #     Q(field1__exact=Value(value1), field2__gt=Value(value2)) |
+        #     Q(field1__exact=Value(value1), field2__exact=Value(value2), field3__lt=Value(value3))
+        # )
+
+        # In order to remember which keys we need to compare for equality on the next iteration,
+        # we need an accumulator in which we store all the previous keys.
+        # When we are generating a Q object for j-th position/ordering pair,
+        # our q_accumulative would contain equality lookups
+        # for previous pairs of 0-th to (j-1)-th pairs.
+        # That would allow us to generate a Q object like the following:
+        # Q(f1__exact=Value(v1), f2__exact=Value(v2), ..., fj_1__exact=Value(vj_1), fj__lt=Value(vj)),
+        # where the last item would depend on both "reverse" option and ordering key sign.
+
+        for position, ordering in zip(position, self.ordering):
+            value = Value(position, output_field=TextField())
             is_reversed = ordering.startswith('-')
             o = ordering.lstrip('-')
-
             if reverse != is_reversed:
-                key_cmp = "{}__lt".format(o)
+                comparison_key = "{}__lt".format(o)
             else:
-                key_cmp = "{}__gt".format(o)
+                comparison_key = "{}__gt".format(o)
 
-            key_eq = "{}__exact".format(o)
-
-            value = Value(position, output_field=TextField())
-
-            q = {key_cmp: value}
-            for q_eq in q_acc:
-                q.update(q_eq)
-
+            q = {comparison_key: value}
+            for q_equality in q_accumulative:
+                q.update(q_equality)
             filtering |= Q(**q)
 
-            q_acc.append({key_eq: value})
+            equality_key = "{}__exact".format(o)
+            q_accumulative.append({equality_key: value})
 
         return queryset.filter(filtering)
 
