@@ -80,9 +80,6 @@ class CursorPaginator(object):
     def apply_cursor(self, cursor, queryset, reverse=False):
         position = self.decode_cursor(cursor)
 
-        filtering = Q()
-        q_accumulative = []
-
         # this was previously implemented as tuple comparison done on postgres side
         # Assume comparing 3-tuples a and b,
         # the comparison a < b is equivalent to:
@@ -117,14 +114,18 @@ class CursorPaginator(object):
         # In order to remember which keys we need to compare for equality on the next iteration,
         # we need an accumulator in which we store all the previous keys.
         # When we are generating a Q object for j-th position/ordering pair,
-        # our q_accumulative would contain equality lookups
+        # our q_equality would contain equality lookups
         # for previous pairs of 0-th to (j-1)-th pairs.
         # That would allow us to generate a Q object like the following:
         # Q(f1__exact=Value(v1), f2__exact=Value(v2), ..., fj_1__exact=Value(vj_1), fj__lt=Value(vj)),
         # where the last item would depend on both "reverse" option and ordering key sign.
 
-        for position, ordering in zip(position, self.ordering):
-            value = Value(position, output_field=TextField())
+        filtering = Q()
+        q_equality = {}
+
+        position_values = [Value(pos, output_field=TextField()) for pos in position]
+
+        for ordering, value in zip(self.ordering, position_values):
             is_reversed = ordering.startswith('-')
             o = ordering.lstrip('-')
             if reverse != is_reversed:
@@ -133,12 +134,11 @@ class CursorPaginator(object):
                 comparison_key = "{}__gt".format(o)
 
             q = {comparison_key: value}
-            for q_equality in q_accumulative:
-                q.update(q_equality)
+            q.update(q_equality)
             filtering |= Q(**q)
 
             equality_key = "{}__exact".format(o)
-            q_accumulative.append({equality_key: value})
+            q_equality.update({equality_key: value})
 
         return queryset.filter(filtering)
 
