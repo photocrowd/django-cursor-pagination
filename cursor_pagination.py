@@ -2,7 +2,6 @@ from base64 import b64decode, b64encode
 from collections import Sequence
 
 from django.db.models import Field, Func, Value, TextField
-from django.utils import six
 from django.utils.translation import ugettext_lazy as _
 
 
@@ -130,7 +129,7 @@ class CursorPaginator(object):
             while parts:
                 attr = getattr(attr, parts[0])
                 parts.pop(0)
-            position.append(six.text_type(attr))
+            position.append(str(attr))
         return position
 
     def cursor(self, instance):
