@@ -5,10 +5,21 @@ on: pull_request
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
         python-version: [3.7, 3.8]
         django-version: [2.1, 2.2]
+
+    services:
+      postgres:
+        image: postgres
+        ports: ["5432:5432"]
+
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: django-cursor-pagination
+
     steps:
       - uses: actions/checkout@v2
       - name: Set up Python
@@ -19,5 +30,4 @@ jobs:
         run: pip install django==${{ matrix.django-version }}
       - run: pip install psycopg2
       - run: pip install -e .
-      - run: psql -c 'CREATE DATABASE "django-cursor-pagination"' -U postgres;
       - run: python runtests.py
