@@ -98,7 +98,7 @@ class CursorPaginator(object):
 
         # WHERE ((field1 < value1) OR
         #     (field1 = value1 AND field2 > value2) OR
-        #     (field1 = value1 AND field2 = value2 OR field3 < value3).
+        #     (field1 = value1 AND field2 = value2 AND field3 < value3).
         #
         # We will use `__lt` lookup for `<`,
         # `__gt` for `>` and `__exact` for `=`.
