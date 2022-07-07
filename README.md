@@ -64,8 +64,6 @@ Caveats
 -------
 
 - The ordering specified **must** uniquely identify the object.
-- If there are multiple ordering fields, then they must all have the same
-  direction.
 - If a cursor is given and it does not refer to a valid object, the values of
   `has_previous` (for `after`) or `has_next` (for `before`) will always return
   `True`.

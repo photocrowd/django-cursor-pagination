@@ -1,29 +1,8 @@
 from base64 import b64decode, b64encode
 from collections.abc import Sequence
 
-from django.db.models import Field, Func, Value, TextField
+from django.db.models import Q, TextField, Value
 from django.utils.translation import gettext_lazy as _
-
-
-class TupleField(Field):
-    pass
-
-
-class Tuple(Func):
-    function = ''
-    output_field = TupleField()
-
-    def get_group_by_cols(self):
-        # Irrespective of whether we have an aggregate, we want to drill down
-        # to the children here. You can't GROUP BY a tuple like you would for a
-        # "normal" function - i.e. GROUP BY ("a", "b") is invalid SQL. However,
-        # it's logically equivalent to GROUP BY "a", "b" in call cases, so we
-        # never need the case where this 'function' needs to be included in the
-        # clause.
-        cols = []
-        for expr in self.source_expressions:
-            cols += expr.get_group_by_cols()
-        return cols
 
 
 class InvalidCursor(Exception):
@@ -66,9 +45,6 @@ class CursorPaginator(object):
         self.queryset = queryset.order_by(*ordering)
         self.ordering = ordering
 
-        if not all(o.startswith('-') for o in ordering) and not all(not o.startswith('-') for o in ordering):
-            raise InvalidCursor('Direction of orderings must match')
-
     def page(self, first=None, last=None, after=None, before=None):
         qs = self.queryset
         page_size = first or last
@@ -103,12 +79,67 @@ class CursorPaginator(object):
     def apply_cursor(self, cursor, queryset, reverse=False):
         position = self.decode_cursor(cursor)
 
-        is_reversed = self.ordering[0].startswith('-')
-        queryset = queryset.annotate(_cursor=Tuple(*[o.lstrip('-') for o in self.ordering]))
-        current_position = [Value(p, output_field=TextField()) for p in position]
-        if reverse != is_reversed:
-            return queryset.filter(_cursor__lt=Tuple(*current_position))
-        return queryset.filter(_cursor__gt=Tuple(*current_position))
+        # this was previously implemented as tuple comparison done on postgres side
+        # Assume comparing 3-tuples a and b,
+        # the comparison a < b is equivalent to:
+        # (a.0 < b.0) || (a.0 == b.0 && (a.1 < b.1)) || (a.0 == b.0 && a.1 == b.1 && (a.2 < b.2))
+        # The expression above does not depend on short-circuit evalution support,
+        # which is usually unavailable on backend RDB
+
+        # In order to reflect that in DB query,
+        # we need to generate a corresponding WHERE-clause.
+
+        # Suppose we have ordering ("field1", "-field2", "field3")
+        # (note negation 2nd item),
+        # and corresponding cursor values are ("value1", "value2", "value3"),
+        # `reverse` is False.
+        # In order to apply cursor, we need to generate a following WHERE-clause:
+
+        # WHERE ((field1 < value1) OR
+        #     (field1 = value1 AND field2 > value2) OR
+        #     (field1 = value1 AND field2 = value2 AND field3 < value3).
+        #
+        # We will use `__lt` lookup for `<`,
+        # `__gt` for `>` and `__exact` for `=`.
+        # (Using case-sensitive comparison as long as
+        # cursor values come from the DB against which it is going to be compared).
+        # The corresponding django ORM construct would look like:
+        # filter(
+        #     Q(field1__lt=Value(value1)) |
+        #     Q(field1__exact=Value(value1), field2__gt=Value(value2)) |
+        #     Q(field1__exact=Value(value1), field2__exact=Value(value2), field3__lt=Value(value3))
+        # )
+
+        # In order to remember which keys we need to compare for equality on the next iteration,
+        # we need an accumulator in which we store all the previous keys.
+        # When we are generating a Q object for j-th position/ordering pair,
+        # our q_equality would contain equality lookups
+        # for previous pairs of 0-th to (j-1)-th pairs.
+        # That would allow us to generate a Q object like the following:
+        # Q(f1__exact=Value(v1), f2__exact=Value(v2), ..., fj_1__exact=Value(vj_1), fj__lt=Value(vj)),
+        # where the last item would depend on both "reverse" option and ordering key sign.
+
+        filtering = Q()
+        q_equality = {}
+
+        position_values = [Value(pos, output_field=TextField()) for pos in position]
+
+        for ordering, value in zip(self.ordering, position_values):
+            is_reversed = ordering.startswith('-')
+            o = ordering.lstrip('-')
+            if reverse != is_reversed:
+                comparison_key = "{}__lt".format(o)
+            else:
+                comparison_key = "{}__gt".format(o)
+
+            q = {comparison_key: value}
+            q.update(q_equality)
+            filtering |= Q(**q)
+
+            equality_key = "{}__exact".format(o)
+            q_equality.update({equality_key: value})
+
+        return queryset.filter(filtering)
 
     def decode_cursor(self, cursor):
         try:
