@@ -3,7 +3,6 @@ from collections.abc import Sequence
 
 from django.db.models import Q, TextField, Value
 from django.utils.translation import gettext_lazy as _
-from django.utils.translation import ugettext_lazy as _
 
 
 class InvalidCursor(Exception):
