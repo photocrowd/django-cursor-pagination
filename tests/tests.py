@@ -28,6 +28,82 @@ class TestNoArgs(TestCase):
         self.assertFalse(page.has_previous)
 
 
+class TestForwardNullPagination(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        now = timezone.now()
+        cls.items = []
+        for i in range(2):  # index 0-1
+            author = Author.objects.create(name='Name %s' % i, age=i+20, created=now - datetime.timedelta(hours=i))
+            cls.items.append(author)
+        for i in range(5):  # index 2-6
+            author = Author.objects.create(name='NameNull %s' % (i + 2), age=None, created=now - datetime.timedelta(hours=i))
+            cls.items.append(author)
+        cls.paginator = CursorPaginator(Author.objects.all(), ('-age', '-created',))
+    # [1, 0, 2, 3, 4, 5, 6]
+    
+
+    def test_first_page(self):
+        page = self.paginator.page(first=3)
+        self.assertSequenceEqual(page, [self.items[1], self.items[0], self.items[2]])
+        self.assertTrue(page.has_next)
+        self.assertFalse(page.has_previous)
+
+    def test_second_page(self):
+        previous_page = self.paginator.page(first=3)
+        cursor = self.paginator.cursor(previous_page[-1])
+        page = self.paginator.page(first=2, after=cursor)
+        self.assertSequenceEqual(page, [self.items[3], self.items[4]])
+        self.assertTrue(page.has_next)
+        self.assertTrue(page.has_previous)
+
+    def test_last_page(self):
+        previous_page = self.paginator.page(first=5)
+        cursor = self.paginator.cursor(previous_page[-1])
+        page = self.paginator.page(first=10, after=cursor)
+        self.assertSequenceEqual(page, [self.items[5], self.items[6]])
+        self.assertFalse(page.has_next)
+        self.assertTrue(page.has_previous)
+
+
+class TestBackwardsNullPagination(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        now = timezone.now()
+        cls.items = []
+        for i in range(2):  # index 0-1
+            author = Author.objects.create(name='Name %s' % i, age=i+20, created=now - datetime.timedelta(hours=i))
+            cls.items.append(author)
+        for i in range(5):  # index 2-6
+            author = Author.objects.create(name='NameNull %s' % (i + 2), age=None, created=now - datetime.timedelta(hours=i))
+            cls.items.append(author)
+        cls.paginator = CursorPaginator(Author.objects.all(), ('-age', '-created',))
+
+    # [1, 0, 2, 3, 4, 5, 6]
+
+    def test_first_page(self):
+        page = self.paginator.page(last=2)
+        self.assertSequenceEqual(page, [self.items[5], self.items[6]])
+        self.assertTrue(page.has_previous)
+        self.assertFalse(page.has_next)
+
+    def test_second_page(self):
+        previous_page = self.paginator.page(last=2)
+        cursor = self.paginator.cursor(previous_page[0])
+        page = self.paginator.page(last=4, before=cursor)
+        self.assertSequenceEqual(page, [self.items[0], self.items[2], self.items[3], self.items[4]])
+        self.assertTrue(page.has_previous)
+        self.assertTrue(page.has_next)
+
+    def test_last_page(self):
+        previous_page = self.paginator.page(last=6)
+        cursor = self.paginator.cursor(previous_page[0])
+        page = self.paginator.page(last=10, before=cursor)
+        self.assertSequenceEqual(page, [self.items[1]])
+        self.assertFalse(page.has_previous)
+        self.assertTrue(page.has_next)
+
+
 class TestForwardPagination(TestCase):
 
     @classmethod

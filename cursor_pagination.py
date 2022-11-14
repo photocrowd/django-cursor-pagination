@@ -1,7 +1,7 @@
 from base64 import b64decode, b64encode
 from collections.abc import Sequence
 
-from django.db.models import Q, TextField, Value
+from django.db.models import F, Q, TextField, Value
 from django.utils.translation import gettext_lazy as _
 
 
@@ -39,11 +39,32 @@ class CursorPage(Sequence):
 
 class CursorPaginator(object):
     delimiter = '|'
+    none_string = '::None'
     invalid_cursor_message = _('Invalid cursor')
 
     def __init__(self, queryset, ordering):
-        self.queryset = queryset.order_by(*ordering)
+        self.queryset = queryset.order_by(*self._nulls_ordering(ordering))
         self.ordering = ordering
+
+    def _nulls_ordering(self, ordering, last=False):
+        nulls_ordering = []
+        for o in ordering:
+            is_reversed = o.startswith('-')
+            o = o.lstrip('-')
+            if is_reversed:
+                if last:
+                    nulls_ordering.append(F(o).desc(nulls_first=True))
+                else:
+                    nulls_ordering.append(F(o).desc(nulls_last=True))
+            else:
+                if last:
+                    nulls_ordering.append(F(o).asc(nulls_first=True))
+                else:
+                    nulls_ordering.append(F(o).asc(nulls_last=True))
+
+        return nulls_ordering
+
+
 
     def page(self, first=None, last=None, after=None, before=None):
         qs = self.queryset
@@ -60,7 +81,7 @@ class CursorPaginator(object):
         if last is not None:
             if first is not None:
                 raise ValueError('Cannot process first and last')
-            qs = qs.order_by(*reverse_ordering(self.ordering))[:last + 1]
+            qs = qs.order_by(*self._nulls_ordering(reverse_ordering(self.ordering), last=True))[:last + 1]
 
         qs = list(qs)
         items = qs[:page_size]
@@ -122,29 +143,38 @@ class CursorPaginator(object):
         filtering = Q()
         q_equality = {}
 
-        position_values = [Value(pos, output_field=TextField()) for pos in position]
+        position_values = [Value(pos, output_field=TextField()) if pos is not None else None for pos in position]
 
         for ordering, value in zip(self.ordering, position_values):
             is_reversed = ordering.startswith('-')
             o = ordering.lstrip('-')
-            if reverse != is_reversed:
-                comparison_key = "{}__lt".format(o)
+            if value is None:
+                key = "{}__isnull".format(o)
+                if reverse is True:
+                    q = {key : False}
+                    q.update(q_equality)
+                    filtering |= Q(**q)
+
+                q_equality.update({key: True})
             else:
-                comparison_key = "{}__gt".format(o)
+                if reverse != is_reversed:
+                    comparison_key = "{}__lt".format(o)
+                else:
+                    comparison_key = "{}__gt".format(o)
 
-            q = {comparison_key: value}
-            q.update(q_equality)
-            filtering |= Q(**q)
+                q = {comparison_key: value}
+                q.update(q_equality)
+                filtering |= Q(**q)
 
-            equality_key = "{}__exact".format(o)
-            q_equality.update({equality_key: value})
+                equality_key = "{}__exact".format(o)
+                q_equality.update({equality_key: value})
 
         return queryset.filter(filtering)
 
     def decode_cursor(self, cursor):
         try:
             orderings = b64decode(cursor.encode('ascii')).decode('utf8')
-            return orderings.split(self.delimiter)
+            return [ordering if ordering != self.none_string else None for ordering in orderings.split(self.delimiter)]
         except (TypeError, ValueError):
             raise InvalidCursor(self.invalid_cursor_message)
 
@@ -160,8 +190,12 @@ class CursorPaginator(object):
             while parts:
                 attr = getattr(attr, parts[0])
                 parts.pop(0)
-            position.append(str(attr))
+            if attr is None:
+                position.append(self.none_string)
+            else:
+                position.append(str(attr))
         return position
 
     def cursor(self, instance):
         return self.encode_cursor(self.position_from_instance(instance))
+

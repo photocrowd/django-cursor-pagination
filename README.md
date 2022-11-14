@@ -67,3 +67,4 @@ Caveats
 - If a cursor is given and it does not refer to a valid object, the values of
   `has_previous` (for `after`) or `has_next` (for `before`) will always return
   `True`.
+- `NULL` comes at the end in query results with `ORDER BY` both for `ASC` and `DESC`.

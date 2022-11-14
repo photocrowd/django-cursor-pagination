@@ -4,6 +4,7 @@ from django.utils import timezone
 
 class Author(models.Model):
     name = models.CharField(max_length=20)
+    age = models.IntegerField(blank=True, null=True)
     created = models.DateTimeField(default=timezone.now)
 
     def __str__(self):
