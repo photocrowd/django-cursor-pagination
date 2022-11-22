@@ -52,19 +52,19 @@ class CursorPaginator(object):
         When "from_last" is specified, NULL value comes first since we return the results in reversed order.
         """
         nulls_ordering = []
-        for o in ordering:
-            is_reversed = o.startswith('-')
-            o = o.lstrip('-')
+        for key in ordering:
+            is_reversed = key.startswith('-')
+            column = key.lstrip('-')
             if is_reversed:
                 if from_last:
-                    nulls_ordering.append(F(o).desc(nulls_first=True))
+                    nulls_ordering.append(F(column).desc(nulls_first=True))
                 else:
-                    nulls_ordering.append(F(o).desc(nulls_last=True))
+                    nulls_ordering.append(F(column).desc(nulls_last=True))
             else:
                 if from_last:
-                    nulls_ordering.append(F(o).asc(nulls_first=True))
+                    nulls_ordering.append(F(column).asc(nulls_first=True))
                 else:
-                    nulls_ordering.append(F(o).asc(nulls_last=True))
+                    nulls_ordering.append(F(column).asc(nulls_last=True))
 
         return nulls_ordering
 
