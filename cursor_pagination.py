@@ -1,7 +1,7 @@
 from base64 import b64decode, b64encode
 from collections.abc import Sequence
 
-from django.db.models import Q, TextField, Value
+from django.db.models import F, Q, TextField, Value
 from django.utils.translation import gettext_lazy as _
 
 
@@ -39,11 +39,36 @@ class CursorPage(Sequence):
 
 class CursorPaginator(object):
     delimiter = '|'
+    none_string = '::None'
     invalid_cursor_message = _('Invalid cursor')
 
     def __init__(self, queryset, ordering):
-        self.queryset = queryset.order_by(*ordering)
+        self.queryset = queryset.order_by(*self._nulls_ordering(ordering))
         self.ordering = ordering
+
+    def _nulls_ordering(self, ordering, from_last=False):
+        """
+        This clarifies that NULL value comes at the end in the sort.
+        When "from_last" is specified, NULL value comes first since we return the results in reversed order.
+        """
+        nulls_ordering = []
+        for key in ordering:
+            is_reversed = key.startswith('-')
+            column = key.lstrip('-')
+            if is_reversed:
+                if from_last:
+                    nulls_ordering.append(F(column).desc(nulls_first=True))
+                else:
+                    nulls_ordering.append(F(column).desc(nulls_last=True))
+            else:
+                if from_last:
+                    nulls_ordering.append(F(column).asc(nulls_first=True))
+                else:
+                    nulls_ordering.append(F(column).asc(nulls_last=True))
+
+        return nulls_ordering
+
+
 
     def page(self, first=None, last=None, after=None, before=None):
         qs = self.queryset
@@ -51,16 +76,18 @@ class CursorPaginator(object):
         if page_size is None:
             return CursorPage(qs, self)
 
+        from_last = last is not None
+        if from_last and first is not None:
+            raise ValueError('Cannot process first and last') 
+
         if after is not None:
-            qs = self.apply_cursor(after, qs)
+            qs = self.apply_cursor(after, qs, from_last=from_last)
         if before is not None:
-            qs = self.apply_cursor(before, qs, reverse=True)
+            qs = self.apply_cursor(before, qs, from_last=from_last, reverse=True)
         if first is not None:
             qs = qs[:first + 1]
         if last is not None:
-            if first is not None:
-                raise ValueError('Cannot process first and last')
-            qs = qs.order_by(*reverse_ordering(self.ordering))[:last + 1]
+            qs = qs.order_by(*self._nulls_ordering(reverse_ordering(self.ordering), from_last=True))[:last + 1]
 
         qs = list(qs)
         items = qs[:page_size]
@@ -76,7 +103,7 @@ class CursorPaginator(object):
             additional_kwargs['has_next'] = bool(before)
         return CursorPage(items, self, **additional_kwargs)
 
-    def apply_cursor(self, cursor, queryset, reverse=False):
+    def apply_cursor(self, cursor, queryset, from_last, reverse=False):
         position = self.decode_cursor(cursor)
 
         # this was previously implemented as tuple comparison done on postgres side
@@ -95,19 +122,20 @@ class CursorPaginator(object):
         # `reverse` is False.
         # In order to apply cursor, we need to generate a following WHERE-clause:
 
-        # WHERE ((field1 < value1) OR
-        #     (field1 = value1 AND field2 > value2) OR
-        #     (field1 = value1 AND field2 = value2 AND field3 < value3).
+        # WHERE ((field1 < value1 OR field1 IS NULL) OR
+        #     (field1 = value1 AND (field2 > value2 OR field2 IS NULL)) OR
+        #     (field1 = value1 AND field2 = value2 AND (field3 < value3 IS NULL)).
         #
+        # Keep in mind, NULL is considered the last part of each field's order. 
         # We will use `__lt` lookup for `<`,
         # `__gt` for `>` and `__exact` for `=`.
         # (Using case-sensitive comparison as long as
         # cursor values come from the DB against which it is going to be compared).
         # The corresponding django ORM construct would look like:
         # filter(
-        #     Q(field1__lt=Value(value1)) |
-        #     Q(field1__exact=Value(value1), field2__gt=Value(value2)) |
-        #     Q(field1__exact=Value(value1), field2__exact=Value(value2), field3__lt=Value(value3))
+        #     Q(field1__lt=Value(value1) OR field1__isnull=True) |
+        #     Q(field1__exact=Value(value1), (Q(field2__gt=Value(value2) | Q(field2__isnull=True)) |
+        #     Q(field1__exact=Value(value1), field2__exact=Value(value2), (Q(field3__lt=Value(value3) | Q(field3__isnull=True)))
         # )
 
         # In order to remember which keys we need to compare for equality on the next iteration,
@@ -122,29 +150,39 @@ class CursorPaginator(object):
         filtering = Q()
         q_equality = {}
 
-        position_values = [Value(pos, output_field=TextField()) for pos in position]
+        position_values = [Value(pos, output_field=TextField()) if pos is not None else None for pos in position]
 
         for ordering, value in zip(self.ordering, position_values):
             is_reversed = ordering.startswith('-')
             o = ordering.lstrip('-')
-            if reverse != is_reversed:
-                comparison_key = "{}__lt".format(o)
-            else:
-                comparison_key = "{}__gt".format(o)
+            if value is None:  # cursor value for the key was NULL
+                key = "{}__isnull".format(o)
+                if from_last is True:  # if from_last & cursor value is NULL, we need to get non Null for the key
+                    q = {key : False}
+                    q.update(q_equality)
+                    filtering |= Q(**q)
 
-            q = {comparison_key: value}
-            q.update(q_equality)
-            filtering |= Q(**q)
+                q_equality.update({key: True})
+            else:  # cursor value for the key was non NULL
+                if reverse != is_reversed:
+                    comparison_key = "{}__lt".format(o)
+                else:
+                    comparison_key = "{}__gt".format(o)
 
-            equality_key = "{}__exact".format(o)
-            q_equality.update({equality_key: value})
+                q = Q(**{comparison_key: value})
+                if not from_last:  # if not from_last, NULL values are still candidates
+                     q |= Q(**{"{}__isnull".format(o): True})
+                filtering |= (q) & Q(**q_equality)
+
+                equality_key = "{}__exact".format(o)
+                q_equality.update({equality_key: value})
 
         return queryset.filter(filtering)
 
     def decode_cursor(self, cursor):
         try:
             orderings = b64decode(cursor.encode('ascii')).decode('utf8')
-            return orderings.split(self.delimiter)
+            return [ordering if ordering != self.none_string else None for ordering in orderings.split(self.delimiter)]
         except (TypeError, ValueError):
             raise InvalidCursor(self.invalid_cursor_message)
 
@@ -160,8 +198,12 @@ class CursorPaginator(object):
             while parts:
                 attr = getattr(attr, parts[0])
                 parts.pop(0)
-            position.append(str(attr))
+            if attr is None:
+                position.append(self.none_string)
+            else:
+                position.append(str(attr))
         return position
 
     def cursor(self, instance):
         return self.encode_cursor(self.position_from_instance(instance))
+
