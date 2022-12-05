@@ -5,7 +5,7 @@ import datetime
 from django.test import TestCase
 from django.utils import timezone
 
-from cursor_pagination import CursorPaginator, InvalidCursor
+from cursor_pagination import CursorPaginator
 
 from .models import Author, Post
 
@@ -190,7 +190,8 @@ class TestNoArgsWithNull(TestCase):
 
 
 class TestForwardNullPagination(TestCase):
-    # When there are NULL values, there needs to be another key to make the sort unique as README Caveats say
+    # When there are NULL values, there needs to be another key to make the sort
+    # unique as README Caveats say
     @classmethod
     def setUpTestData(cls):
         now = timezone.now()
@@ -203,7 +204,6 @@ class TestForwardNullPagination(TestCase):
             cls.items.append(author)
         cls.paginator = CursorPaginator(Author.objects.all(), ('-age', '-created',))
     # [1, 0, 2, 3, 4, 5, 6]
-    
 
     def test_first_page(self):
         page = self.paginator.page(first=3)
