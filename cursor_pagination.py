@@ -27,6 +27,16 @@ class CursorPage(Sequence):
         self.has_next = has_next
         self.has_previous = has_previous
 
+    def before(self):
+        if len(self.items) == 0:
+            return None
+        return self.paginator.cursor(self.items[0])
+
+    def after(self):
+        if len(self.items) == 0:
+            return None
+        return self.paginator.cursor(self.items[-1])
+        
     def __len__(self):
         return len(self.items)
 
