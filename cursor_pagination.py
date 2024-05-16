@@ -1,3 +1,4 @@
+from asgiref.sync import sync_to_async
 from base64 import b64decode, b64encode
 from collections.abc import Sequence
 
@@ -68,17 +69,17 @@ class CursorPaginator(object):
 
         return nulls_ordering
 
-
-
-    def page(self, first=None, last=None, after=None, before=None):
-        qs = self.queryset
+    def _apply_paginator_arguments(self, qs, first=None, last=None, after=None, before=None):
+        """
+        Apply first/after, last/before filtering to the queryset
+        """
         page_size = first or last
         if page_size is None:
             return CursorPage(qs, self)
 
         from_last = last is not None
         if from_last and first is not None:
-            raise ValueError('Cannot process first and last') 
+            raise ValueError('Cannot process first and last')
 
         if after is not None:
             qs = self.apply_cursor(after, qs, from_last=from_last)
@@ -89,11 +90,10 @@ class CursorPaginator(object):
         if last is not None:
             qs = qs.order_by(*self._nulls_ordering(reverse_ordering(self.ordering), from_last=True))[:last + 1]
 
-        qs = list(qs)
-        items = qs[:page_size]
-        if last is not None:
-            items.reverse()
-        has_additional = len(qs) > len(items)
+    def _get_cursor_page(self, items, has_additional, first, last, after, before):
+        """
+        Create and return the cursor page for the given items
+        """
         additional_kwargs = {}
         if first is not None:
             additional_kwargs['has_next'] = has_additional
@@ -102,6 +102,29 @@ class CursorPaginator(object):
             additional_kwargs['has_previous'] = has_additional
             additional_kwargs['has_next'] = bool(before)
         return CursorPage(items, self, **additional_kwargs)
+
+    def page(self, first=None, last=None, after=None, before=None):
+        qs = self.queryset
+        self._apply_paginator_arguments(qs, first, last, after, before)
+
+        qs = list(qs)
+        items = qs[:page_size]
+        if last is not None:
+            items.reverse()
+        has_additional = len(qs) > len(items)
+
+        return self._get_cursor_page(items, has_additional, first, last, after, before)
+
+    async def apage(self, first=None, last=None, after=None, before=None):
+        qs = self.queryset
+        self._apply_paginator_arguments(qs, first, last, after, before)
+
+        items = await sync_to_async(list)(qs[:page_size])
+        if last is not None:
+            items.reverse()
+        has_additional = (await qs.acount()) > len(items)
+
+        return self._get_cursor_page(items, has_additional, first, last, after, before)
 
     def apply_cursor(self, cursor, queryset, from_last, reverse=False):
         position = self.decode_cursor(cursor)

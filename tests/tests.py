@@ -18,11 +18,27 @@ class TestNoArgs(TestCase):
         self.assertFalse(page.has_next)
         self.assertFalse(page.has_previous)
 
+    async def test_async_empty(self):
+        paginator = CursorPaginator(Post.objects.all(), ('id',))
+        page = await paginator.apage()
+        self.assertEqual(len(page), 0)
+        self.assertFalse(page.has_next)
+        self.assertFalse(page.has_previous)
+
     def test_with_items(self):
         for i in range(20):
             Post.objects.create(name='Name %s' % i)
         paginator = CursorPaginator(Post.objects.all(), ('id',))
         page = paginator.page()
+        self.assertEqual(len(page), 20)
+        self.assertFalse(page.has_next)
+        self.assertFalse(page.has_previous)
+
+    async def test_async_with_items(self):
+        for i in range(20):
+            await Post.objects.acreate(name='Name %s' % i)
+        paginator = CursorPaginator(Post.objects.all(), ('id',))
+        page = await paginator.apage()
         self.assertEqual(len(page), 20)
         self.assertFalse(page.has_next)
         self.assertFalse(page.has_previous)
@@ -41,6 +57,12 @@ class TestForwardPagination(TestCase):
 
     def test_first_page(self):
         page = self.paginator.page(first=2)
+        self.assertSequenceEqual(page, [self.items[0], self.items[1]])
+        self.assertTrue(page.has_next)
+        self.assertFalse(page.has_previous)
+
+    async def test_async_first_page(self):
+        page = await self.paginator.apage(first=2)
         self.assertSequenceEqual(page, [self.items[0], self.items[1]])
         self.assertTrue(page.has_next)
         self.assertFalse(page.has_previous)
