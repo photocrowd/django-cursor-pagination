@@ -75,6 +75,14 @@ class TestForwardPagination(TestCase):
         self.assertTrue(page.has_next)
         self.assertTrue(page.has_previous)
 
+    async def test_async_second_page(self):
+        previous_page = await self.paginator.apage(first=2)
+        cursor = self.paginator.cursor(previous_page[-1])
+        page = await self.paginator.apage(first=2, after=cursor)
+        self.assertSequenceEqual(page, [self.items[2], self.items[3]])
+        self.assertTrue(page.has_next)
+        self.assertTrue(page.has_previous)
+
     def test_last_page(self):
         previous_page = self.paginator.page(first=18)
         cursor = self.paginator.cursor(previous_page[-1])
@@ -83,10 +91,26 @@ class TestForwardPagination(TestCase):
         self.assertFalse(page.has_next)
         self.assertTrue(page.has_previous)
 
+    async def test_async_last_page(self):
+        previous_page = await self.paginator.apage(first=18)
+        cursor = self.paginator.cursor(previous_page[-1])
+        page = await self.paginator.apage(first=2, after=cursor)
+        self.assertSequenceEqual(page, [self.items[18], self.items[19]])
+        self.assertFalse(page.has_next)
+        self.assertTrue(page.has_previous)
+
     def test_incomplete_last_page(self):
         previous_page = self.paginator.page(first=18)
         cursor = self.paginator.cursor(previous_page[-1])
         page = self.paginator.page(first=100, after=cursor)
+        self.assertSequenceEqual(page, [self.items[18], self.items[19]])
+        self.assertFalse(page.has_next)
+        self.assertTrue(page.has_previous)
+
+    async def test_async_incomplete_last_page(self):
+        previous_page = await self.paginator.apage(first=18)
+        cursor = self.paginator.cursor(previous_page[-1])
+        page = await self.paginator.apage(first=100, after=cursor)
         self.assertSequenceEqual(page, [self.items[18], self.items[19]])
         self.assertFalse(page.has_next)
         self.assertTrue(page.has_previous)
@@ -109,10 +133,24 @@ class TestBackwardsPagination(TestCase):
         self.assertTrue(page.has_previous)
         self.assertFalse(page.has_next)
 
+    async def test_async_first_page(self):
+        page = await self.paginator.apage(last=2)
+        self.assertSequenceEqual(page, [self.items[18], self.items[19]])
+        self.assertTrue(page.has_previous)
+        self.assertFalse(page.has_next)
+
     def test_second_page(self):
         previous_page = self.paginator.page(last=2)
         cursor = self.paginator.cursor(previous_page[0])
         page = self.paginator.page(last=2, before=cursor)
+        self.assertSequenceEqual(page, [self.items[16], self.items[17]])
+        self.assertTrue(page.has_previous)
+        self.assertTrue(page.has_next)
+
+    async def test_async_second_page(self):
+        previous_page = await self.paginator.apage(last=2)
+        cursor = self.paginator.cursor(previous_page[0])
+        page = await self.paginator.apage(last=2, before=cursor)
         self.assertSequenceEqual(page, [self.items[16], self.items[17]])
         self.assertTrue(page.has_previous)
         self.assertTrue(page.has_next)
@@ -125,10 +163,26 @@ class TestBackwardsPagination(TestCase):
         self.assertFalse(page.has_previous)
         self.assertTrue(page.has_next)
 
+    async def test_async_last_page(self):
+        previous_page = await self.paginator.apage(last=18)
+        cursor = self.paginator.cursor(previous_page[0])
+        page = await self.paginator.apage(last=2, before=cursor)
+        self.assertSequenceEqual(page, [self.items[0], self.items[1]])
+        self.assertFalse(page.has_previous)
+        self.assertTrue(page.has_next)
+
     def test_incomplete_last_page(self):
         previous_page = self.paginator.page(last=18)
         cursor = self.paginator.cursor(previous_page[0])
         page = self.paginator.page(last=100, before=cursor)
+        self.assertSequenceEqual(page, [self.items[0], self.items[1]])
+        self.assertFalse(page.has_previous)
+        self.assertTrue(page.has_next)
+
+    async def test_async_incomplete_last_page(self):
+        previous_page = await self.paginator.apage(last=18)
+        cursor = self.paginator.cursor(previous_page[0])
+        page = await self.paginator.apage(last=100, before=cursor)
         self.assertSequenceEqual(page, [self.items[0], self.items[1]])
         self.assertFalse(page.has_previous)
         self.assertTrue(page.has_next)
