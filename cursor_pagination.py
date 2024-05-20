@@ -108,6 +108,7 @@ class CursorPaginator(object):
         self._apply_paginator_arguments(qs, first, last, after, before)
 
         qs = list(qs)
+        page_size = first or last
         items = qs[:page_size]
         if last is not None:
             items.reverse()
@@ -119,6 +120,7 @@ class CursorPaginator(object):
         qs = self.queryset
         self._apply_paginator_arguments(qs, first, last, after, before)
 
+        page_size = first or last
         items = await sync_to_async(list)(qs[:page_size])
         if last is not None:
             items.reverse()
