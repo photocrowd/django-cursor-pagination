@@ -1,4 +1,3 @@
-from asgiref.sync import sync_to_async
 from base64 import b64decode, b64encode
 from collections.abc import Sequence
 
@@ -121,7 +120,9 @@ class CursorPaginator(object):
         self._apply_paginator_arguments(qs, first, last, after, before)
 
         page_size = first or last
-        items = await sync_to_async(list)(qs[:page_size])
+        items = []
+        async for item in qs[:page_size]:
+            items.append(item)
         if last is not None:
             items.reverse()
         has_additional = (await qs.acount()) > len(items)
