@@ -89,6 +89,8 @@ class CursorPaginator(object):
         if last is not None:
             qs = qs.order_by(*self._nulls_ordering(reverse_ordering(self.ordering), from_last=True))[:last + 1]
 
+        return qs
+
     def _get_cursor_page(self, items, has_additional, first, last, after, before):
         """
         Create and return the cursor page for the given items
@@ -104,7 +106,7 @@ class CursorPaginator(object):
 
     def page(self, first=None, last=None, after=None, before=None):
         qs = self.queryset
-        self._apply_paginator_arguments(qs, first, last, after, before)
+        qs = self._apply_paginator_arguments(qs, first, last, after, before)
 
         qs = list(qs)
         page_size = first or last
@@ -117,7 +119,7 @@ class CursorPaginator(object):
 
     async def apage(self, first=None, last=None, after=None, before=None):
         qs = self.queryset
-        self._apply_paginator_arguments(qs, first, last, after, before)
+        qs = self._apply_paginator_arguments(qs, first, last, after, before)
 
         page_size = first or last
         items = []
