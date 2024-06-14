@@ -36,6 +36,9 @@ class CursorPage(Sequence):
     def __repr__(self):
         return '<Page: [%s%s]>' % (', '.join(repr(i) for i in self.items[:21]), ' (remaining truncated)' if len(self.items) > 21 else '')
 
+    async def acount(self):
+        return await self.items.acount()
+
 
 class CursorPaginator(object):
     delimiter = '|'
