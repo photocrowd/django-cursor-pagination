@@ -55,6 +55,18 @@ class TestForwardPagination(TestCase):
             cls.items.append(post)
         cls.paginator = CursorPaginator(Post.objects.all(), ('-created',))
 
+    def test_first_page_zero(self):
+        page = self.paginator.page(first=0)
+        self.assertSequenceEqual(page, [])
+        self.assertTrue(page.has_next)
+        self.assertFalse(page.has_previous)
+
+    async def test_async_first_page_zero(self):
+        page = await self.paginator.apage(first=0)
+        self.assertSequenceEqual(page, [])
+        self.assertTrue(page.has_next)
+        self.assertFalse(page.has_previous)
+
     def test_first_page(self):
         page = self.paginator.page(first=2)
         self.assertSequenceEqual(page, [self.items[0], self.items[1]])
@@ -126,6 +138,18 @@ class TestBackwardsPagination(TestCase):
             post = Post.objects.create(name='Name %s' % i, created=now - datetime.timedelta(hours=i))
             cls.items.append(post)
         cls.paginator = CursorPaginator(Post.objects.all(), ('-created',))
+
+    def test_first_page_zero(self):
+        page = self.paginator.page(last=0)
+        self.assertSequenceEqual(page, [])
+        self.assertTrue(page.has_previous)
+        self.assertFalse(page.has_next)
+
+    async def test_async_first_page_zero(self):
+        page = await self.paginator.apage(last=0)
+        self.assertSequenceEqual(page, [])
+        self.assertTrue(page.has_previous)
+        self.assertFalse(page.has_next)
 
     def test_first_page(self):
         page = self.paginator.page(last=2)

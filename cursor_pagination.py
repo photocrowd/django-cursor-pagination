@@ -36,9 +36,6 @@ class CursorPage(Sequence):
     def __repr__(self):
         return '<Page: [%s%s]>' % (', '.join(repr(i) for i in self.items[:21]), ' (remaining truncated)' if len(self.items) > 21 else '')
 
-    async def acount(self):
-        return await self.items.acount()
-
 
 class CursorPaginator(object):
     delimiter = '|'
@@ -75,10 +72,6 @@ class CursorPaginator(object):
         """
         Apply first/after, last/before filtering to the queryset
         """
-        page_size = first or last
-        if page_size is None:
-            return CursorPage(qs, self)
-
         from_last = last is not None
         if from_last and first is not None:
             raise ValueError('Cannot process first and last')
@@ -112,7 +105,7 @@ class CursorPaginator(object):
         qs = self._apply_paginator_arguments(qs, first, last, after, before)
 
         qs = list(qs)
-        page_size = first or last
+        page_size = first if first is not None else last
         items = qs[:page_size]
         if last is not None:
             items.reverse()
@@ -124,7 +117,7 @@ class CursorPaginator(object):
         qs = self.queryset
         qs = self._apply_paginator_arguments(qs, first, last, after, before)
 
-        page_size = first or last
+        page_size = first if first is not None else last
         items = []
         async for item in qs[:page_size].aiterator():
             items.append(item)
