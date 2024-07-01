@@ -55,6 +55,19 @@ def posts_api(request, after=None):
         'last_cursor': paginator.cursor(page[-1])
     }
     return data
+
+
+async def posts_api_async(request, after=None):
+    qs = Post.objects.all()
+    page_size = 10
+    paginator = CursorPaginator(qs, ordering=('-created', '-id'))
+    page = await paginator.apage(first=page_size, after=after)
+    data = {
+        'objects': [serialize_page(p) for p in page],
+        'has_next_page': page.has_next,
+        'last_cursor': paginator.cursor(page[-1])
+    }
+    return data
 ```
 
 Reverse pagination can be achieved by using the `last` and `before` arguments
