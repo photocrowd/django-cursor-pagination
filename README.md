@@ -1,4 +1,4 @@
-Django cursor pagination [![Build Status](https://travis-ci.org/photocrowd/django-cursor-pagination.svg?branch=master)](https://travis-ci.org/photocrowd/django-cursor-pagination)
+Django cursor pagination [![Tests](https://github.com/photocrowd/django-cursor-pagination/actions/workflows/tests.yml/badge.svg?event=push)](https://github.com/photocrowd/django-cursor-pagination/actions/workflows/tests.yml)
 ========================
 
 A cursor based pagination system for Django. Instead of refering to specific
