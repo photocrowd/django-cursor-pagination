@@ -35,6 +35,37 @@ Installation
 pip install django-cursor-pagination
 ```
 
+Development & Testing
+--------------------
+
+### Running Tests
+
+1. **Start PostgreSQL with Docker:**
+   ```bash
+   docker-compose up -d postgres
+   ```
+
+2. **Install development dependencies:**
+   ```bash
+   pip install django 'psycopg[binary]' python-dotenv
+   ```
+
+3. **Run tests:**
+   ```bash
+   python runtests.py                    # Run all tests
+   python runtests.py tests.tests.TestForwardPagination  # Run specific test class
+   ```
+
+### Database Configuration
+
+The tests use PostgreSQL by default on port 5432. You can override the port if needed:
+
+```bash
+# Copy example environment file
+cp .env.example .env
+# Edit .env to change POSTGRES_PORT if needed
+```
+
 Usage
 -----
 
@@ -52,7 +83,7 @@ def posts_api(request, after=None):
     data = {
         'objects': [serialize_page(p) for p in page],
         'has_next_page': page.has_next,
-        'last_cursor': paginator.cursor(page[-1])
+        'last_cursor': page.after()
     }
     return data
 
@@ -72,6 +103,50 @@ async def posts_api_async(request, after=None):
 
 Reverse pagination can be achieved by using the `last` and `before` arguments
 to `paginator.page`.
+
+### Helper Methods
+
+The `CursorPage` object provides `before()` and `after()` helper methods that return cursors for the first and last items in the current page, simplifying pagination navigation:
+
+```python
+def posts_api(request):
+    qs = Post.objects.all()
+    page_size = 10
+    paginator = CursorPaginator(qs, ordering=('-created', '-id'))
+    
+    # Handle pagination parameters
+    if 'after' in request.GET:
+        page = paginator.page(first=page_size, after=request.GET['after'])
+    elif 'before' in request.GET:
+        page = paginator.page(last=page_size, before=request.GET['before'])
+    else:
+        page = paginator.page(first=page_size)
+    
+    # Use helper methods for navigation cursors
+    data = {
+        'objects': [serialize_post(p) for p in page],
+        'page_info': {
+            'has_next_page': page.has_next,
+            'has_previous_page': page.has_previous,
+            'start_cursor': page.before(),  # Cursor for first item
+            'end_cursor': page.after()       # Cursor for last item
+        }
+    }
+    return data
+```
+
+This is particularly useful for GraphQL/Relay-style pagination or when building pagination controls in templates:
+
+```django
+<!-- In your Django template -->
+{% if page_obj.has_previous %}
+    <a href="?before={{ page_obj.before }}">Previous</a>
+{% endif %}
+
+{% if page_obj.has_next %}
+    <a href="?after={{ page_obj.after }}">Next</a>
+{% endif %}
+```
 
 Caveats
 -------
