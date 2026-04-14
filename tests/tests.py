@@ -2,6 +2,7 @@
 
 import datetime
 
+from asgiref.sync import async_to_sync
 from django.test import TestCase
 from django.utils import timezone
 
@@ -440,7 +441,6 @@ class TestRelationshipsWithNull(TestCase):
 
 class TestStrategyPattern(TestCase):
     """Test the new strategy pattern functionality."""
-
     @classmethod
     def setUpTestData(cls):
         now = timezone.now()
@@ -461,7 +461,7 @@ class TestStrategyPattern(TestCase):
                 name='Carol', age=25, created=now - datetime.timedelta(hours=2)
             ),
         ]
-
+        
     def test_strategy_interface_abstract(self):
         """Test that CursorStrategy interface is properly abstract."""
         # Should not be able to instantiate abstract class directly
@@ -766,3 +766,31 @@ class TestStrategyPattern(TestCase):
 
         result = strategy.build_cursor_filter(ordering, cursor_values)
         self.assertIsNotNone(result)
+
+class TestPageWithOneDatabaseCall(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        now = timezone.now()
+        cls.items = []
+        for i in range(20):
+            post = Post.objects.create(name='Name %s' % i, created=now - datetime.timedelta(hours=i))
+            cls.items.append(post)
+        cls.paginator = CursorPaginator(Post.objects.all(), ('-created',))
+
+    def test_page_forwards(self):
+        with self.assertNumQueries(1):
+            self.paginator.page(first=2)
+
+    def test_async_page_forwards(self):
+        with self.assertNumQueries(1):
+            # `async_to_sync` is required as long as there is no async version of assertNumQueries
+            async_to_sync(self.paginator.apage)(first=2)
+
+    def test_page_backwards(self):
+        with self.assertNumQueries(1):
+            self.paginator.page(last=2)
+
+    def test_async_page_backwards(self):
+        # `async_to_sync` is required as long as there is no async version of assertNumQueries
+        with self.assertNumQueries(1):
+            async_to_sync(self.paginator.apage)(last=2)
