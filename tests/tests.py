@@ -2,11 +2,11 @@
 
 import datetime
 
+from asgiref.sync import async_to_sync
 from django.test import TestCase
 from django.utils import timezone
 
 from cursor_pagination import CursorPaginator
-
 from .models import Author, Post
 
 
@@ -384,3 +384,32 @@ class TestRelationshipsWithNull(TestCase):
         cursor = self.paginator.cursor(self.items[17])
         page = self.paginator.page(first=2, after=cursor)
         self.assertSequenceEqual(page, [self.items[19], self.items[0]])
+
+
+class TestPageWithOneDatabaseCall(TestCase):
+    @classmethod
+    def setUpTestData(cls):
+        now = timezone.now()
+        cls.items = []
+        for i in range(20):
+            post = Post.objects.create(name='Name %s' % i, created=now - datetime.timedelta(hours=i))
+            cls.items.append(post)
+        cls.paginator = CursorPaginator(Post.objects.all(), ('-created',))
+
+    def test_page_forwards(self):
+        with self.assertNumQueries(1):
+            self.paginator.page(first=2)
+
+    def test_async_page_forwards(self):
+        with self.assertNumQueries(1):
+            # `async_to_sync` is required as long as there is no async version of assertNumQueries
+            async_to_sync(self.paginator.apage)(first=2)
+
+    def test_page_backwards(self):
+        with self.assertNumQueries(1):
+            self.paginator.page(last=2)
+
+    def test_async_page_backwards(self):
+        # `async_to_sync` is required as long as there is no async version of assertNumQueries
+        with self.assertNumQueries(1):
+            async_to_sync(self.paginator.apage)(last=2)

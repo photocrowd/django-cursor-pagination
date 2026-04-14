@@ -119,11 +119,12 @@ class CursorPaginator(object):
 
         page_size = first if first is not None else last
         items = []
-        async for item in qs[:page_size].aiterator():
+        async for item in qs.aiterator():
             items.append(item)
+        has_additional = False if page_size is None else len(items) > page_size
+        items = items[:page_size]
         if last is not None:
             items.reverse()
-        has_additional = (await qs.acount()) > len(items)
 
         return self._get_cursor_page(items, has_additional, first, last, after, before)
 
