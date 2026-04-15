@@ -504,14 +504,14 @@ class TestStrategyPattern(TestCase):
         """Test that PreserveOrderingStrategy returns simple ordering."""
         strategy = PreserveOrderingStrategy()
 
-        # Test get_ordering - should return simple ordering
+        # Test get_ordering - should return simple ordering as a list
         ordering = ('-created', 'id')
         result = strategy.get_ordering(ordering)
-        self.assertEqual(result, ordering)
+        self.assertEqual(result, list(ordering))
 
         # Test with from_last=True - should still return simple ordering
         result_from_last = strategy.get_ordering(ordering, from_last=True)
-        self.assertEqual(result_from_last, ordering)
+        self.assertEqual(result_from_last, list(ordering))
 
     def test_preserve_strategy_cursor_filter(self):
         """Test PreserveOrderingStrategy cursor filter building."""

@@ -1,20 +1,24 @@
+from __future__ import annotations
+
 from base64 import b64decode, b64encode
 from collections.abc import Sequence
+from typing import Union
 
-from django.db.models import F, Q, TextField, Value
+from django.db.models import F, Model, Q, QuerySet, TextField, Value
+from django.db.models.expressions import OrderBy
 from django.utils.translation import gettext_lazy as _
 
 
 class CursorStrategy:
     """Base interface for cursor pagination strategies."""
 
-    def get_ordering(self, ordering, from_last=False):
+    def get_ordering(self, ordering: tuple[str, ...], from_last: bool = False) -> list[Union[str, OrderBy]]:
         """Transform ordering fields for database queries according to the strategy."""
         raise NotImplementedError
 
     def build_cursor_filter(
-        self, ordering, cursor_values, reverse=False, from_last=False
-    ):
+        self, ordering: tuple[str, ...], cursor_values: list[Union[str, None]], reverse: bool = False, from_last: bool = False
+    ) -> Q:
         """Build the cursor filter using the strategy's approach."""
         raise NotImplementedError
 
@@ -22,7 +26,7 @@ class CursorStrategy:
 class DefaultCursorStrategy(CursorStrategy):
     """Default strategy maintaining current NULLS LAST behavior."""
 
-    def get_ordering(self, ordering, from_last=False):
+    def get_ordering(self, ordering: tuple[str, ...], from_last: bool = False) -> list[Union[str, OrderBy]]:
         """
         Transform ordering fields with explicit NULL handling for consistent behavior.
 
@@ -30,7 +34,7 @@ class DefaultCursorStrategy(CursorStrategy):
         When "from_last" is specified, NULL values come first since we return
         the results in reversed order.
         """
-        nulls_ordering = []
+        nulls_ordering: list[Union[str, OrderBy]] = []
         for key in ordering:
             is_reversed = key.startswith('-')
             column = key.lstrip('-')
@@ -48,8 +52,8 @@ class DefaultCursorStrategy(CursorStrategy):
         return nulls_ordering
 
     def build_cursor_filter(
-        self, ordering, cursor_values, reverse=False, from_last=False
-    ):
+        self, ordering: tuple[str, ...], cursor_values: list[Union[str, None]], reverse: bool = False, from_last: bool = False
+    ) -> Q:
         """
         Build the cursor filter using the current OR logic and NULL handling.
         This is the existing implementation from the apply_cursor method.
@@ -61,14 +65,14 @@ class DefaultCursorStrategy(CursorStrategy):
             raise ValueError("Ordering and cursor values must match length")
 
         # Convert cursor values for comparison
-        position_values = [
+        position_values: list[Union[Value, None]] = [
             Value(pos, output_field=TextField()) if pos is not None else None
             for pos in cursor_values
         ]
 
         # Build Q object with OR logic and NULL handling (current implementation)
         filtering = Q()
-        q_equality = {}
+        q_equality: dict[str, object] = {}
 
         for ordering_field, value in zip(ordering, position_values):
             is_reversed = ordering_field.startswith('-')
@@ -78,9 +82,9 @@ class DefaultCursorStrategy(CursorStrategy):
                 if (
                     from_last is True
                 ):  # if from_last & cursor value is NULL, we need to get non Null for the key
-                    q = {key: False}
-                    q.update(q_equality)
-                    filtering |= Q(**q)
+                    q_dict: dict[str, object] = {key: False}
+                    q_dict.update(q_equality)
+                    filtering |= Q(**q_dict)
 
                 q_equality.update({key: True})
             else:  # cursor value for the key was non NULL
@@ -105,43 +109,43 @@ class PreserveOrderingStrategy(DefaultCursorStrategy):
     Cursor strategy that preserves the ordering of the fields.
     """
 
-    def get_ordering(self, ordering, from_last=False):
+    def get_ordering(self, ordering: tuple[str, ...], from_last: bool = False) -> list[Union[str, OrderBy]]:
         """
         Return simple ordering fields.
         """
-        return ordering
+        return list(ordering)
 
 
 class InvalidCursor(Exception):
     pass
 
 
-def reverse_ordering(ordering_tuple):
+def reverse_ordering(ordering_tuple: tuple[str, ...]) -> tuple[str, ...]:
     """
     Given an order_by tuple such as `('-created', 'uuid')` reverse the
     ordering and return a new tuple, eg. `('created', '-uuid')`.
     """
 
-    def invert(x):
+    def invert(x: str) -> str:
         return x[1:] if (x.startswith('-')) else '-' + x
 
     return tuple([invert(item) for item in ordering_tuple])
 
 
-class CursorPage(Sequence):
-    def __init__(self, items, paginator, has_next=False, has_previous=False):
-        self.items = items
+class CursorPage(Sequence[object]):
+    def __init__(self, items: Sequence[object], paginator: CursorPaginator, has_next: bool = False, has_previous: bool = False) -> None:
+        self.items = list(items)
         self.paginator = paginator
         self.has_next = has_next
         self.has_previous = has_previous
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.items)
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: int) -> object:  # type: ignore[override]
         return self.items.__getitem__(key)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return '<Page: [%s%s]>' % (
             ', '.join(repr(i) for i in self.items[:21]),
             ' (remaining truncated)' if len(self.items) > 21 else '',
@@ -149,26 +153,36 @@ class CursorPage(Sequence):
 
 
 class CursorPaginator(object):
-    delimiter = '|'
-    none_string = '::None'
+    delimiter: str = '|'
+    none_string: str = '::None'
     invalid_cursor_message = _('Invalid cursor')
 
-    def __init__(self, queryset, ordering, strategy=None):
+    def __init__(
+        self,
+        queryset: QuerySet[Model],
+        ordering: tuple[str, ...],
+        strategy: Union[CursorStrategy, None] = None,
+    ) -> None:
         self.ordering = ordering
         self.strategy = strategy or DefaultCursorStrategy()
         self.queryset = queryset.order_by(*self._get_ordering(ordering))
 
-    def _get_ordering(self, ordering):
+    def _get_ordering(self, ordering: tuple[str, ...]) -> list[Union[str, OrderBy]]:
         """Get database ordering using the current strategy."""
         return self.strategy.get_ordering(ordering)
 
-    def _nulls_ordering(self, ordering, from_last=False):
+    def _nulls_ordering(self, ordering: tuple[str, ...], from_last: bool = False) -> list[Union[str, OrderBy]]:
         """Deprecated: Use strategy.get_ordering instead."""
         return self.strategy.get_ordering(ordering, from_last)
 
     def _apply_paginator_arguments(
-        self, qs, first=None, last=None, after=None, before=None
-    ):
+        self,
+        qs: QuerySet[Model],
+        first: Union[int, None] = None,
+        last: Union[int, None] = None,
+        after: Union[str, None] = None,
+        before: Union[str, None] = None,
+    ) -> QuerySet[Model]:
         """
         Apply first/after, last/before filtering to the queryset
         """
@@ -189,11 +203,19 @@ class CursorPaginator(object):
 
         return qs
 
-    def _get_cursor_page(self, items, has_additional, first, last, after, before):
+    def _get_cursor_page(
+        self,
+        items: Sequence[object],
+        has_additional: bool,
+        first: Union[int, None],
+        last: Union[int, None],
+        after: Union[str, None],
+        before: Union[str, None],
+    ) -> CursorPage:
         """
         Create and return the cursor page for the given items
         """
-        additional_kwargs = {}
+        additional_kwargs: dict[str, bool] = {}
         if first is not None:
             additional_kwargs['has_next'] = has_additional
             additional_kwargs['has_previous'] = bool(after)
@@ -202,25 +224,25 @@ class CursorPaginator(object):
             additional_kwargs['has_next'] = bool(before)
         return CursorPage(items, self, **additional_kwargs)
 
-    def page(self, first=None, last=None, after=None, before=None):
+    def page(self, first: Union[int, None] = None, last: Union[int, None] = None, after: Union[str, None] = None, before: Union[str, None] = None) -> CursorPage:
         qs = self.queryset
         qs = self._apply_paginator_arguments(qs, first, last, after, before)
 
-        qs = list(qs)
+        results = list(qs)
         page_size = first if first is not None else last
-        items = qs[:page_size]
+        items = results[:page_size]
         if last is not None:
             items.reverse()
-        has_additional = len(qs) > len(items)
+        has_additional = len(results) > len(items)
 
         return self._get_cursor_page(items, has_additional, first, last, after, before)
 
-    async def apage(self, first=None, last=None, after=None, before=None):
+    async def apage(self, first: Union[int, None] = None, last: Union[int, None] = None, after: Union[str, None] = None, before: Union[str, None] = None) -> CursorPage:
         qs = self.queryset
         qs = self._apply_paginator_arguments(qs, first, last, after, before)
 
         page_size = first if first is not None else last
-        items = []
+        items: list[object] = []
         async for item in qs.aiterator():
             items.append(item)
         has_additional = False if page_size is None else len(items) > page_size
@@ -230,7 +252,7 @@ class CursorPaginator(object):
 
         return self._get_cursor_page(items, has_additional, first, last, after, before)
 
-    def apply_cursor(self, cursor, queryset, from_last, reverse=False):
+    def apply_cursor(self, cursor: str, queryset: QuerySet[Model], from_last: bool, reverse: bool = False) -> QuerySet[Model]:
         """Apply cursor using the current strategy."""
         position = self.decode_cursor(cursor)
         return queryset.filter(
@@ -239,7 +261,7 @@ class CursorPaginator(object):
             )
         )
 
-    def decode_cursor(self, cursor):
+    def decode_cursor(self, cursor: str) -> list[Union[str, None]]:
         try:
             orderings = b64decode(cursor.encode('ascii')).decode('utf8')
             return [
@@ -249,14 +271,14 @@ class CursorPaginator(object):
         except (TypeError, ValueError):
             raise InvalidCursor(self.invalid_cursor_message)
 
-    def encode_cursor(self, position):
+    def encode_cursor(self, position: list[str]) -> str:
         encoded = b64encode(self.delimiter.join(position).encode('utf8')).decode(
             'ascii'
         )
         return encoded
 
-    def position_from_instance(self, instance):
-        position = []
+    def position_from_instance(self, instance: object) -> list[str]:
+        position: list[str] = []
         for order in self.ordering:
             parts = order.lstrip('-').split('__')
             attr = instance
@@ -269,15 +291,15 @@ class CursorPaginator(object):
                 position.append(str(attr))
         return position
 
-    def cursor(self, instance):
+    def cursor(self, instance: object) -> str:
         return self.encode_cursor(self.position_from_instance(instance))
 
     @classmethod
-    def for_preserve_ordering(cls, queryset, ordering):
+    def for_preserve_ordering(cls, queryset: QuerySet[Model], ordering: tuple[str, ...]) -> CursorPaginator:
         """Create cursor paginator using PreserveOrderingStrategy."""
         return cls(queryset, ordering, strategy=PreserveOrderingStrategy())
 
     @classmethod
-    def with_strategy(cls, queryset, ordering, strategy):
+    def with_strategy(cls, queryset: QuerySet[Model], ordering: tuple[str, ...], strategy: CursorStrategy) -> CursorPaginator:
         """Create a cursor paginator with a custom strategy."""
         return cls(queryset, ordering, strategy=strategy)

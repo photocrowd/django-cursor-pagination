@@ -6,7 +6,8 @@ with open("README.md", "r") as fh:
 
 setup(
     name="django-cursor-pagination",
-    py_modules=["cursor_pagination"],
+    packages=["cursor_pagination"],
+    package_data={"cursor_pagination": ["py.typed"]},
     version="0.3.0",
     description="Cursor based pagination for Django",
     long_description=long_description,
@@ -22,11 +23,14 @@ setup(
         "License :: OSI Approved :: BSD License",
         "Natural Language :: English",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.7",
-        "Programming Language :: Python :: 3.8",
-        "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
+        "Framework :: Django :: 4.2",
+        "Framework :: Django :: 5.0",
+        "Framework :: Django :: 5.2",
+        "Framework :: Django :: 6.0",
+        "Typing :: Typed",
     ],
 )
